@@ -11,10 +11,14 @@ FASTLED_USING_NAMESPACE
 #define LED_PIN      D0
 #define COLOR_ORDER  GRB
 #define CHIPSET      WS2812B
-#define NUM_LEDS     16
-#define LEDS_PER_ROW 5
+#define NUM_LEDS     300
 
-#define BRIGHTNESS  250
+// #define COLOR_ORDER  NSFastLED::GRB
+// #define CHIPSET      WS2811
+// #define NUM_LEDS     50
+
+#define LEDS_PER_ROW 5
+#define BRIGHTNESS  128
 #define FRAMES_PER_SECOND 60
 
 CRGB leds[NUM_LEDS];
@@ -88,20 +92,18 @@ int setStripWidth(String wStr) {
 }
 
 void setup() {
-    delay(5000); // 10 second delay for recovery
-
     Particle.variable("brightness", brightness);
     Particle.variable("stripWidth", stripWidth);
 
     Particle.function("setBright", setBrightness);
     Particle.function("setWidth", setStripWidth);
 
-    delay(3000); // setup guard
+    delay(5000); // setup guard
     FastLED.addLeds<CHIPSET, D0, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
     FastLED.addLeds<CHIPSET, D1, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
-    FastLED.addLeds<CHIPSET, D2, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
-    FastLED.addLeds<CHIPSET, D3, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
-    FastLED.addLeds<CHIPSET, D4, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
+    // FastLED.addLeds<CHIPSET, D2, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
+    // FastLED.addLeds<CHIPSET, D3, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
+    // FastLED.addLeds<CHIPSET, D4, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
     FastLED.setBrightness(BRIGHTNESS);
 }
 
@@ -167,8 +169,8 @@ void ChangePalettePeriodically()
 
   if( lastSecond != secondHand) {
     lastSecond = secondHand;
-    changeAccumulator += random8(10);
-    if (changeAccumulator > 100) {
+    changeAccumulator += random8(11);
+    if (changeAccumulator > 75) {
       changeAccumulator = 0;
       switch (random8(6)) {
         case 0 : targetPalette = halloween_p; break;
@@ -203,10 +205,103 @@ void drawPumpkin() {
     FillLEDsFromPaletteColors( startIndex);
 }
 
+//glitter effect
+void addGlitter(auto chanceOfGlitter) {
+  if( random8() < chanceOfGlitter) {
+    leds[ random16(NUM_LEDS) ] += CRGB::White;
+  }
+}
+void addNegativeGlitter(auto chanceOfGlitter) {
+  if( random8() < chanceOfGlitter) {
+    leds[ random16(NUM_LEDS) ].nscale8(random8());
+  }
+}
+
+auto first = true;
+void drawSparkleLine() {
+  // First time turn everything white
+  if (first) {
+    for (auto n = 0; n < NUM_LEDS; n++) {
+      leds[n] = CRGB::White;
+    }
+    first = false;
+  }
+
+  // Make every LED brighter, clamps at FF for each channel
+  for (auto n = 0; n < NUM_LEDS; n++) {
+    leds[n].addToRGB(random8(128));
+  }
+
+  EVERY_N_MILLISECONDS(1000/30) {
+    // Dim 50% of the LEDs 30 times per second
+    for (auto n = 0; n < NUM_LEDS; n++) {
+      if (random8(100) < 50) {
+        leds[random16(NUM_LEDS)].nscale8(random8(128) + 16);
+      }
+    }
+  }
+}
+
+void drawWreath() {
+  //
+  // for (auto n = 0; n < NUM_LEDS; n++) {
+  //   switch ((seconds16() / 2) % 4) {
+  //     case 0: {
+  //       leds[n] = CRGB(255,0,0);
+  //       break;
+  //     }
+  //     case 1: {
+  //       leds[n] = CRGB(0,255,0);
+  //       break;
+  //     }
+  //     case 2: {
+  //       leds[n] = CRGB(0,0,255);
+  //       break;
+  //     }
+  //     case 3: {
+  //       leds[n] = CRGB(255,255,255);
+  //       break;
+  //     }
+  //   }
+  //
+  // }
+
+
+  // for (auto n = 0; n < NUM_LEDS; n++) {
+  //   switch ((n / 3) % 4) {
+  //     case 0: {
+  //       leds[n] = CRGB(255,0,0);
+  //       break;
+  //     }
+  //     case 1: {
+  //       leds[n] = CRGB(0,255,0);
+  //       break;
+  //     }
+  //     case 2: {
+  //       leds[n] = CRGB(0,0,255);
+  //       break;
+  //     }
+  //     case 3: {
+  //       leds[n] = CRGB(255,255,255);
+  //       break;
+  //     }
+  //   }
+  // }
+
+
+   leds[0] = CRGB(255,0,0);
+   leds[1] = CRGB(0,255,0);
+   leds[2] = CRGB(0,255,0);
+   leds[3] = CRGB(0,0,255);
+   leds[4] = CRGB(0,0,255);
+   leds[5] = CRGB(0,0,255);
+}
 
 
 void loop() {
-    drawPumpkin();
+    // drawWreath();
+    drawSparkleLine();
+    // drawPumpkin();
     // drawGhostPole();
     // drawRoofLine();
 
