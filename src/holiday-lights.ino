@@ -8,11 +8,12 @@
 #include <FastLED.h>
 FASTLED_USING_NAMESPACE
 
-#define LED_PIN      D0
+// Roof Line & Ghosts
 #define COLOR_ORDER  GRB
 #define CHIPSET      WS2812B
 #define NUM_LEDS     300
 
+//
 // #define COLOR_ORDER  NSFastLED::GRB
 // #define CHIPSET      WS2811
 // #define NUM_LEDS     50
@@ -62,15 +63,15 @@ DEFINE_GRADIENT_PALETTE( halloween_p ) {
   255, 102,  0,102};
 
 
-const auto ORANGE = CRGB(255, 90, 0);
-const auto PURPLE = CRGB(102, 0, 102);
-const auto GREEN = CRGB::ForestGreen;
+const CRGB ORANGE = CRGB(255, 90, 0);
+const CRGB PURPLE = CRGB(102, 0, 102);
+const CRGB GREEN = CRGB::ForestGreen;
 
 int brightness = BRIGHTNESS;
-int stripWidth = 2;
+int stripWidth = 4;
 
 int setBrightness(String bStr) {
-    const auto b = bStr.toInt();
+    const long b = bStr.toInt();
     if (b < 0) {
         brightness = 0;
     } else if (b > 255) {
@@ -81,7 +82,7 @@ int setBrightness(String bStr) {
 }
 
 int setStripWidth(String wStr) {
-    const auto w = wStr.toInt();
+    const long w = wStr.toInt();
     if (w < 1) {
         stripWidth = 1;
     } else if (w > (NUM_LEDS / LEDS_PER_ROW)) {
@@ -99,12 +100,21 @@ void setup() {
     Particle.function("setWidth", setStripWidth);
 
     delay(5000); // setup guard
+
+    // Roof Line
+    // FastLED.addLeds<CHIPSET, D0, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
+    // FastLED.addLeds<CHIPSET, D1, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
+
+    // Ghost Poles
     FastLED.addLeds<CHIPSET, D0, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
     FastLED.addLeds<CHIPSET, D1, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
-    // FastLED.addLeds<CHIPSET, D2, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
+    FastLED.addLeds<CHIPSET, D2, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
+
     // FastLED.addLeds<CHIPSET, D3, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
     // FastLED.addLeds<CHIPSET, D4, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalPixelString );
     FastLED.setBrightness(BRIGHTNESS);
+
+    InitPixelStates();
 }
 
 
@@ -119,14 +129,102 @@ void drawPumpkinPole() {
     }
 }
 
-const auto CHASE_DELAY = 25;
+const int CHASE_DELAY = 25;
+
+// Base background color
+#define BASE_COLOR       CRGB(32,32,32)
+
+// Peak color to twinkle up to
+#define PEAK_COLOR       CRGB(200,200,200)
+
+// Currently set to brighten up a bit faster than it dims down,
+// but this can be adjusted.
+
+// Amount to increment the color by each loop as it gets brighter:
+#define DELTA_COLOR_UP   CRGB(4,4,4)
+
+// Amount to decrement the color by each loop as it gets dimmer:
+#define DELTA_COLOR_DOWN CRGB(2,2,2)
+
+
+// Chance of each pixel starting to brighten up.
+// 1 or 2 = a few brightening pixels at a time.
+// 10 = lots of pixels brightening at a time.
+#define CHANCE_OF_TWINKLE 1
+
+
+enum { SteadyDim, GettingBrighter, GettingDimmerAgain };
+uint8_t PixelState[NUM_LEDS];
+
+void InitPixelStates()
+{
+  memset( PixelState, sizeof(PixelState), SteadyDim); // initialize all the pixels to SteadyDim.
+  fill_solid( leds, NUM_LEDS, BASE_COLOR);
+}
+
+void TwinkleMapPixels()
+{
+  for( uint16_t i = 0; i < NUM_LEDS; i++) {
+    if( PixelState[i] == SteadyDim) {
+      // this pixels is currently: SteadyDim
+      // so we randomly consider making it start getting brighter
+      if( random8() < CHANCE_OF_TWINKLE) {
+        PixelState[i] = GettingBrighter;
+      }
+
+    } else if( PixelState[i] == GettingBrighter ) {
+      // this pixels is currently: GettingBrighter
+      // so if it's at peak color, switch it to getting dimmer again
+      if( leds[i] >= PEAK_COLOR ) {
+        PixelState[i] = GettingDimmerAgain;
+      } else {
+        // otherwise, just keep brightening it:
+        leds[i] += DELTA_COLOR_UP;
+      }
+
+    } else { // getting dimmer again
+      // this pixels is currently: GettingDimmerAgain
+      // so if it's back to base color, switch it to steady dim
+      if( leds[i] <= BASE_COLOR ) {
+        leds[i] = BASE_COLOR; // reset to exact base color, in case we overshot
+        PixelState[i] = SteadyDim;
+      } else {
+        // otherwise, just keep dimming it down:
+        leds[i] -= DELTA_COLOR_DOWN;
+      }
+    }
+  }
+}
+
+void drawChristmasPole() {
+    // // This is the "clock" that determines how fast the animation runs
+    // int startIdx = ((millis() / CHASE_DELAY) % (NUM_LEDS / LEDS_PER_ROW)) * LEDS_PER_ROW;
+    //
+    // for (int n = 0; n < NUM_LEDS; n++) {
+    //     CRGB color = CRGB::Red;
+    //     if ((n / LEDS_PER_ROW / stripWidth) % 2 == 1) {
+    //         color = CRGB::Green;
+    //     }
+    //     leds[(startIdx + n) % NUM_LEDS] = color;
+    // }
+
+
+      int startIdx = (millis() / CHASE_DELAY) % NUM_LEDS;
+
+      for (int n = 0; n < NUM_LEDS; n++) {
+        uint8_t wavePosition = ((float)(startIdx + n) / NUM_LEDS) * 255;
+        uint8_t waveValue = cubicwave8(wavePosition);
+        leds[n] = CRGB::Green;
+        leds[n].nscale8_video(waveValue);
+      }
+}
 
 void drawGhostPole() {
     // This is the "clock" that determines how fast the animation runs
-    auto startIdx = ((millis() / CHASE_DELAY) % (NUM_LEDS / LEDS_PER_ROW)) * LEDS_PER_ROW;
+    int startIdx = ((millis() / CHASE_DELAY) % (NUM_LEDS / LEDS_PER_ROW)) * LEDS_PER_ROW;
 
-    for (auto n = 0; n < NUM_LEDS; n++) {
-        auto color = ORANGE;
+    for (int n = 0; n < NUM_LEDS; n++) {
+        CRGB color = ORANGE;
         if ((n / LEDS_PER_ROW / stripWidth) % 2 == 1) {
             color = PURPLE;
         }
@@ -135,12 +233,23 @@ void drawGhostPole() {
 }
 
 
-void drawRoofLine() {
-  auto startIdx = (millis() / CHASE_DELAY) % NUM_LEDS;
+void drawWhiteRoofLine() {
+  int startIdx = (millis() / CHASE_DELAY) % NUM_LEDS;
 
-  for (auto n = 0; n < NUM_LEDS; n++) {
-    auto wavePosition = ((float)(startIdx + n) / NUM_LEDS) * 255;
-    auto waveValue = cubicwave8(wavePosition);
+  for (int n = 0; n < NUM_LEDS; n++) {
+    uint8_t wavePosition = ((float)(startIdx + n) / NUM_LEDS) * 255;
+    uint8_t waveValue = cubicwave8(wavePosition);
+    leds[n] = CRGB::White;
+    leds[n].nscale8_video(waveValue);
+  }
+}
+
+void drawRoofLine() {
+  int startIdx = (millis() / CHASE_DELAY) % NUM_LEDS;
+
+  for (int n = 0; n < NUM_LEDS; n++) {
+    uint8_t wavePosition = ((float)(startIdx + n) / NUM_LEDS) * 255;
+    uint8_t waveValue = cubicwave8(wavePosition);
     leds[n] = ORANGE;
     leds[n].nscale8_video(waveValue);
   }
@@ -206,35 +315,35 @@ void drawPumpkin() {
 }
 
 //glitter effect
-void addGlitter(auto chanceOfGlitter) {
+void addGlitter(uint8_t chanceOfGlitter) {
   if( random8() < chanceOfGlitter) {
     leds[ random16(NUM_LEDS) ] += CRGB::White;
   }
 }
-void addNegativeGlitter(auto chanceOfGlitter) {
+void addNegativeGlitter(uint8_t chanceOfGlitter) {
   if( random8() < chanceOfGlitter) {
     leds[ random16(NUM_LEDS) ].nscale8(random8());
   }
 }
 
-auto first = true;
+bool first = true;
 void drawSparkleLine() {
   // First time turn everything white
   if (first) {
-    for (auto n = 0; n < NUM_LEDS; n++) {
+    for (int n = 0; n < NUM_LEDS; n++) {
       leds[n] = CRGB::White;
     }
     first = false;
   }
 
   // Make every LED brighter, clamps at FF for each channel
-  for (auto n = 0; n < NUM_LEDS; n++) {
+  for (int n = 0; n < NUM_LEDS; n++) {
     leds[n].addToRGB(random8(128));
   }
 
   EVERY_N_MILLISECONDS(1000/30) {
     // Dim 50% of the LEDs 30 times per second
-    for (auto n = 0; n < NUM_LEDS; n++) {
+    for (int n = 0; n < NUM_LEDS; n++) {
       if (random8(100) < 50) {
         leds[random16(NUM_LEDS)].nscale8(random8(128) + 16);
       }
@@ -297,13 +406,24 @@ void drawWreath() {
    leds[5] = CRGB(0,0,255);
 }
 
+void drawOff() {
+  for (int n = 0; n < NUM_LEDS; n++) {
+    leds[n] = CRGB::Black;
+  }
+}
+
 
 void loop() {
+    //drawOff();
     // drawWreath();
-    drawSparkleLine();
+    // drawSparkleLine();
     // drawPumpkin();
     // drawGhostPole();
     // drawRoofLine();
+
+    // drawChristmasPole();
+    TwinkleMapPixels();
+    // drawWhiteRoofLine();
 
     FastLED.setBrightness(brightness);
     FastLED.show();
